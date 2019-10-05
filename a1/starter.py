@@ -80,7 +80,7 @@ if __name__ == "__main__":
     trainData, validData, testData, trainTarget, validTarget, testTarget = loadData()
     x = trainData.reshape(-1, trainData.shape[1] * trainData.shape[2])
     y = trainTarget.flatten()
-    W = 0
+    W = np.zeros(x.shape[1])
     b = 0
 
     validData = validData.reshape(-1, validData.shape[1] * validData.shape[2])
