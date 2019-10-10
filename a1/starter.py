@@ -104,70 +104,86 @@ def buildGraph(loss="MSE", beta1=0.9, beta2=0.999, epsilon=1e-08):
         y_pred = tf.matmul(x, W) + b
         valid_pred = tf.matmul(validData, W) + b
         test_pred = tf.matmul(testData, W) + b
-        train_loss = tf.losses.mean_squared_error(labels=y, predictions=y_pred) + reg * tf.nn.l2_loss(W)
+        train_loss = tf.losses.mean_squared_error(labels=y, predictions=y_pred) + \
+        reg * tf.nn.l2_loss(W)
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=0.001, beta1=beta1, beta2=beta2, epsilon=epsilon)
+        optimizer = tf.train.AdamOptimizer(learning_rate=0.001, beta1=beta1, \
+                                           beta2=beta2, epsilon=epsilon)
         train = optimizer.minimize(loss=train_loss)
 
-        valid_loss = tf.losses.mean_squared_error(labels=validTarget, predictions=valid_pred) + reg * tf.nn.l2_loss(W)
-        test_loss = tf.losses.mean_squared_error(labels=testTarget, predictions=test_pred) + reg * tf.nn.l2_loss(W)
+        valid_loss = tf.losses.mean_squared_error(labels=validTarget, \
+                                  redictions=valid_pred) + reg * tf.nn.l2_loss(W)
+        test_loss = tf.losses.mean_squared_error(labels=testTarget, \
+                                  predictions=test_pred) + reg * tf.nn.l2_loss(W)
     elif loss == "CE":
         train_logits = tf.matmul(x, W) + b
         valid_logits = tf.matmul(validData, W) + b
         test_logits = tf.matmul(testData, W) + b
 
-        train_loss = tf.losses.sigmoid_cross_entropy(y, train_logits) + reg * tf.nn.l2_loss(W)
+        train_loss = tf.losses.sigmoid_cross_entropy(y, train_logits) + \
+                                                        reg * tf.nn.l2_loss(W)
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=0.001, beta1=beta1, beta2=beta2, epsilon=epsilon)
+        optimizer = tf.train.AdamOptimizer(learning_rate=0.001, \
+                                           beta1=beta1, beta2=beta2, epsilon=epsilon)
         train = optimizer.minimize(loss=train_loss)
 
-        valid_loss = tf.losses.sigmoid_cross_entropy(validTarget, valid_logits) + reg * tf.nn.l2_loss(W)
-        test_loss = tf.losses.sigmoid_cross_entropy(testTarget, test_logits) + reg * tf.nn.l2_loss(W)
+        valid_loss = tf.losses.sigmoid_cross_entropy(validTarget, valid_logits) + \
+                                                        reg * tf.nn.l2_loss(W)
+        test_loss = tf.losses.sigmoid_cross_entropy(testTarget, test_logits) + \
+                                                        reg * tf.nn.l2_loss(W)
 
         y_pred = tf.sigmoid(train_logits)
         valid_pred = tf.sigmoid(valid_logits)
         test_pred = tf.sigmoid(test_logits)
 
-    return W, b, x, y_pred, y, validData, validTarget, testData, testTarget, reg, train_loss, valid_loss, test_loss, train, valid_pred, test_pred
+    return W, b, x, y_pred, y, validData, validTarget, testData, testTarget, reg, \
+            train_loss, valid_loss, test_loss, train, valid_pred, test_pred
 
 def getAccuracy(predict, target):
     return np.sum((predict >= 0.5) == target) / target.shape[0]
 
 def SGD(loss_type="MSE", batch_size=500, beta1=0.9, beta2=0.999, epsilon=1e-08):
-    W, b, x, y_pred, y, validData, validTarget, testData, testTarget, reg, train_loss, valid_loss, test_loss, train, valid_pred, test_pred = buildGraph(loss_type, beta1, beta2, epsilon)
-    reg_param = 0.0
-    train_data, valid_data, test_data, train_target, valid_target, test_target = loadData()
-    train_data = train_data.reshape(-1, train_data.shape[1] * train_data.shape[2])
-    valid_data = valid_data.reshape(-1, valid_data.shape[1] * valid_data.shape[2])
-    test_data = test_data.reshape(-1, test_data.shape[1] * test_data.shape[2])
-    batch_number = int(train_data.shape[0] / batch_size)
+    g1 = tf.Graph()
+    with g1.as_default():
+        tf.set_random_seed(421)
+        W, b, x, y_pred, y, validData, validTarget, testData, testTarget, reg, train_loss, valid_loss, test_loss, train, valid_pred,\
+             test_pred = buildGraph(loss_type, beta1, beta2, epsilon)
+        reg_param = 0.0
+        train_data, valid_data, test_data, train_target, valid_target, test_target = loadData()
+        train_data = train_data.reshape(-1, train_data.shape[1] * train_data.shape[2])
+        valid_data = valid_data.reshape(-1, valid_data.shape[1] * valid_data.shape[2])
+        test_data = test_data.reshape(-1, test_data.shape[1] * test_data.shape[2])
+        batch_number = int(train_data.shape[0] / batch_size)
 
-    trainLossHistory = []
-    validLossHistory = []
-    testLossHistory = []
-    trainAccuracyHistory = []
-    validAccuracyHistory = []
-    testAccuracyHistory = []
+        trainLossHistory = []
+        validLossHistory = []
+        testLossHistory = []
+        trainAccuracyHistory = []
+        validAccuracyHistory = []
+        testAccuracyHistory = []
+        
+        init = tf.global_variables_initializer()
 
-    init = tf.global_variables_initializer()
+        with tf.Session() as sess:
+            sess.run(init)
+            for _ in range(700):
+                p = np.random.permutation(train_data.shape[0])
+                train_data = train_data[p]
+                train_target = train_target[p]
+                for batch_index in range(batch_number):
+                    sess.run([train], feed_dict={x: train_data[batch_index * batch_size:(batch_index + 1) * batch_size], \
+                        y: train_target[batch_index * batch_size:(batch_index + 1) * batch_size], reg: reg_param})
 
-    with tf.Session() as sess:
-        sess.run(init)
-        for _ in range(700):
-            p = np.random.permutation(train_data.shape[0])
-            train_data = train_data[p]
-            train_target = train_target[p]
-            for batch_index in range(batch_number):
-                sess.run([train], feed_dict={x: train_data[batch_index * batch_size:(batch_index + 1) * batch_size], y: train_target[batch_index * batch_size:(batch_index + 1) * batch_size], reg: reg_param})
+                trainLoss, validLoss, testLoss, trainPred, validPred, testPred = sess.run([train_loss, valid_loss, test_loss, y_pred, \
+                    valid_pred, test_pred], feed_dict={x: train_data, y: train_target, validData:valid_data, validTarget:valid_target, \
+                        testData:test_data, testTarget:test_target, reg: reg_param})
+                trainLossHistory.append(trainLoss)
+                validLossHistory.append(validLoss)
+                testLossHistory.append(testLoss)
 
-            trainLoss, validLoss, testLoss, trainPred, validPred, testPred = sess.run([train_loss, valid_loss, test_loss, y_pred, valid_pred, test_pred], feed_dict={x: train_data, y: train_target, validData:valid_data, validTarget:valid_target, testData:test_data, testTarget:test_target, reg: reg_param})
-            trainLossHistory.append(trainLoss)
-            validLossHistory.append(validLoss)
-            testLossHistory.append(testLoss)
-
-            trainAccuracyHistory.append(getAccuracy(trainPred, train_target))
-            validAccuracyHistory.append(getAccuracy(validPred, valid_target))
-            testAccuracyHistory.append(getAccuracy(testPred, test_target))
+                trainAccuracyHistory.append(getAccuracy(trainPred, train_target))
+                validAccuracyHistory.append(getAccuracy(validPred, valid_target))
+                testAccuracyHistory.append(getAccuracy(testPred, test_target))
 
     return trainLossHistory, validLossHistory, testLossHistory, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory
 
@@ -201,7 +217,6 @@ if __name__ == "__main__":
     # 3.2
     trainLossHistory, validLossHistory, testLossHistory, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "MSE")
 
-    plt.figure(0)
     fig, axs = plt.subplots(1, 2, figsize=(8,4), dpi = 80, constrained_layout=True)
 
     fig.suptitle("SGD (alpha = 0.001, lambda = 0, batch_size = 500)")
@@ -225,7 +240,6 @@ if __name__ == "__main__":
     #100
     trainLossHistory, validLossHistory, testLossHistory, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "MSE", batch_size=100)
 
-    plt.figure(1)
     fig, axs = plt.subplots(1, 2, figsize=(8,4), dpi = 80, constrained_layout=True)
 
     fig.suptitle("SGD Batchsize Investigation (alpha = 0.001, lambda = 0, batch_size = 100)")
@@ -248,7 +262,6 @@ if __name__ == "__main__":
     #700
     trainLossHistory, validLossHistory, testLossHistory, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "MSE", batch_size=700)
 
-    plt.figure(2)
     fig, axs = plt.subplots(1, 2, figsize=(8,4), dpi = 80, constrained_layout=True)
 
     fig.suptitle("SGD Batchsize Investigation (alpha = 0.001, lambda = 0, batch_size = 700)")
@@ -271,7 +284,6 @@ if __name__ == "__main__":
     #1750
     trainLossHistory, validLossHistory, testLossHistory, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "MSE", batch_size=1750)
 
-    plt.figure(3)
     fig, axs = plt.subplots(1, 2, figsize=(8,4), dpi = 80, constrained_layout=True)
 
     fig.suptitle("SGD Batchsize Investigation (alpha = 0.001, lambda = 0, batch_size = 1750)")
@@ -294,90 +306,259 @@ if __name__ == "__main__":
     plt.show()
 
     #3.4
-    plt.figure(4)
-    fig, axs = plt.subplots(1, 2, figsize=(8,4), dpi = 80, constrained_layout=True)
+    fig, axs = plt.subplots(2, 3, figsize=(10,6), dpi = 100, constrained_layout=True)
     fig.suptitle("SGD Hyperparameter Investigation")
     _, _, _, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "MSE", beta1=0.95)
-    axs[0].set_title("beta1 = 0.95")
-    axs[0].plot(n, trainAccuracyHistory)
-    axs[0].plot(n, validAccuracyHistory)
-    axs[0].plot(n, testAccuracyHistory)
-    axs[0].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
-    axs[0].set_xlabel('iterations')
-    axs[0].set_ylabel('accuracy')
+    axs[0, 0].set_title("beta1 = 0.95")
+    axs[0, 0].plot(n, trainAccuracyHistory)
+    axs[0, 0].plot(n, validAccuracyHistory)
+    axs[0, 0].plot(n, testAccuracyHistory)
+    axs[0, 0].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
+    axs[0, 0].set_xlabel('iterations')
+    axs[0, 0].set_ylabel('accuracy')
     print("beta1=0.95")
     print("train accuracy =", trainAccuracyHistory[-1])
     print("valid accuracy =", validAccuracyHistory[-1])
     print("test accuracy =", testAccuracyHistory[-1])
 
     _, _, _, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "MSE", beta1=0.99)
-    axs[1].set_title("beta1 = 0.99")
-    axs[1].plot(n, trainAccuracyHistory)
-    axs[1].plot(n, validAccuracyHistory)
-    axs[1].plot(n, testAccuracyHistory)
-    axs[1].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
-    axs[1].set_xlabel('iterations')
-    axs[1].set_ylabel('accuracy')
+    axs[1, 0].set_title("beta1 = 0.99")
+    axs[1, 0].plot(n, trainAccuracyHistory)
+    axs[1, 0].plot(n, validAccuracyHistory)
+    axs[1, 0].plot(n, testAccuracyHistory)
+    axs[1, 0].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
+    axs[1, 0].set_xlabel('iterations')
+    axs[1, 0].set_ylabel('accuracy')
     print('beta1=0.99')
     print("train accuracy =", trainAccuracyHistory[-1])
     print("valid accuracy =", validAccuracyHistory[-1])
     print("test accuracy =", testAccuracyHistory[-1])
     
-    plt.figure(5)
-    fig, axs = plt.subplots(1, 2, figsize=(8,4), dpi = 80, constrained_layout=True)
     _, _, _, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "MSE", beta2=0.99)
-    axs[0].set_title("beta2 = 0.99")
-    axs[0].plot(n, trainAccuracyHistory)
-    axs[0].plot(n, validAccuracyHistory)
-    axs[0].plot(n, testAccuracyHistory)
-    axs[0].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
-    axs[0].set_xlabel('iterations')
-    axs[0].set_ylabel('accuracy')
+    axs[0, 1].set_title("beta2 = 0.99")
+    axs[0, 1].plot(n, trainAccuracyHistory)
+    axs[0, 1].plot(n, validAccuracyHistory)
+    axs[0, 1].plot(n, testAccuracyHistory)
+    axs[0, 1].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
+    axs[0, 1].set_xlabel('iterations')
+    axs[0, 1].set_ylabel('accuracy')
     print('beta2=0.99')
     print("train accuracy =", trainAccuracyHistory[-1])
     print("valid accuracy =", validAccuracyHistory[-1])
     print("test accuracy =", testAccuracyHistory[-1])
 
     _, _, _, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "MSE", beta2=0.9999)
-    axs[1].set_title("beta2 = 0.9999")
-    axs[1].plot(n, trainAccuracyHistory)
-    axs[1].plot(n, validAccuracyHistory)
-    axs[1].plot(n, testAccuracyHistory)
-    axs[1].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
-    axs[1].set_xlabel('iterations')
-    axs[1].set_ylabel('accuracy')
+    axs[1, 1].set_title("beta2 = 0.9999")
+    axs[1, 1].plot(n, trainAccuracyHistory)
+    axs[1, 1].plot(n, validAccuracyHistory)
+    axs[1, 1].plot(n, testAccuracyHistory)
+    axs[1, 1].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
+    axs[1, 1].set_xlabel('iterations')
+    axs[1, 1].set_ylabel('accuracy')
     print('beta2=0.9999')
     print("train accuracy =", trainAccuracyHistory[-1])
     print("valid accuracy =", validAccuracyHistory[-1])
     print("test accuracy =", testAccuracyHistory[-1])
 
-    plt.figure(6)
-    fig, axs = plt.subplots(1, 2, figsize=(8,4), dpi = 80, constrained_layout=True)
     _, _, _, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "MSE", epsilon=1e-9)
-    axs[0].set_title("epsilon = 1e-9")
-    axs[0].plot(n, trainAccuracyHistory)
-    axs[0].plot(n, validAccuracyHistory)
-    axs[0].plot(n, testAccuracyHistory)
-    axs[0].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
-    axs[0].set_xlabel('iterations')
-    axs[0].set_ylabel('accuracy')
+    axs[0, 2].set_title("epsilon = 1e-9")
+    axs[0, 2].plot(n, trainAccuracyHistory)
+    axs[0, 2].plot(n, validAccuracyHistory)
+    axs[0, 2].plot(n, testAccuracyHistory)
+    axs[0, 2].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
+    axs[0, 2].set_xlabel('iterations')
+    axs[0, 2].set_ylabel('accuracy')
     print('epsilon=1e-9')
     print("train accuracy =", trainAccuracyHistory[-1])
     print("valid accuracy =", validAccuracyHistory[-1])
     print("test accuracy =", testAccuracyHistory[-1])
 
     _, _, _, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "MSE", epsilon=1e-4)
-    axs[1].set_title("epsilon = 1e-4")
+    axs[1, 2].set_title("epsilon = 1e-4")
+    axs[1, 2].plot(n, trainAccuracyHistory)
+    axs[1, 2].plot(n, validAccuracyHistory)
+    axs[1, 2].plot(n, testAccuracyHistory)
+    axs[1, 2].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
+    axs[1, 2].set_xlabel('iterations')
+    axs[1, 2].set_ylabel('accuracy')
+    print('epsilon=1e-4')
+    print("train accuracy =", trainAccuracyHistory[-1])
+    print("valid accuracy =", validAccuracyHistory[-1])
+    print("test accuracy =", testAccuracyHistory[-1])
+
+
+    #3.5
+    trainLossHistory, validLossHistory, testLossHistory, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "CE")
+
+    fig, axs = plt.subplots(1, 2, figsize=(8,4), dpi = 80, constrained_layout=True)
+
+    fig.suptitle("SGD with CE (alpha = 0.001, lambda = 0, batch_size = 500)")
+    axs[0].set_title("loss history")
+    axs[0].plot(n, trainLossHistory)
+    axs[0].plot(n, validLossHistory)
+    axs[0].plot(n, testLossHistory)
+    axs[0].legend(['train loss', 'valid loss', 'test loss'])
+    axs[0].set_xlabel('iterations')
+    axs[0].set_ylabel('loss')
+  
+    axs[1].set_title("accuracy history")
     axs[1].plot(n, trainAccuracyHistory)
     axs[1].plot(n, validAccuracyHistory)
     axs[1].plot(n, testAccuracyHistory)
     axs[1].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
     axs[1].set_xlabel('iterations')
     axs[1].set_ylabel('accuracy')
+
+    # #3.3
+    #100
+    trainLossHistory, validLossHistory, testLossHistory, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "CE", batch_size=100)
+
+    fig, axs = plt.subplots(1, 2, figsize=(8,4), dpi = 80, constrained_layout=True)
+
+    fig.suptitle("CE Batchsize Investigation (alpha = 0.001, lambda = 0, batch_size = 100)")
+    axs[0].set_title("loss history")
+    axs[0].plot(n, trainLossHistory)
+    axs[0].plot(n, validLossHistory)
+    axs[0].plot(n, testLossHistory)
+    axs[0].legend(['train loss', 'valid loss', 'test loss'])
+    axs[0].set_xlabel('iterations')
+    axs[0].set_ylabel('loss')
+  
+    axs[1].set_title("accuracy history")
+    axs[1].plot(n, trainAccuracyHistory)
+    axs[1].plot(n, validAccuracyHistory)
+    axs[1].plot(n, testAccuracyHistory)
+    axs[1].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
+    axs[1].set_xlabel('iterations')
+    axs[1].set_ylabel('accuracy')
+
+    #700
+    trainLossHistory, validLossHistory, testLossHistory, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "CE", batch_size=700)
+
+    fig, axs = plt.subplots(1, 2, figsize=(8,4), dpi = 80, constrained_layout=True)
+
+    fig.suptitle("CE Batchsize Investigation (alpha = 0.001, lambda = 0, batch_size = 700)")
+    axs[0].set_title("loss history")
+    axs[0].plot(n, trainLossHistory)
+    axs[0].plot(n, validLossHistory)
+    axs[0].plot(n, testLossHistory)
+    axs[0].legend(['train loss', 'valid loss', 'test loss'])
+    axs[0].set_xlabel('iterations')
+    axs[0].set_ylabel('loss')
+  
+    axs[1].set_title("accuracy history")
+    axs[1].plot(n, trainAccuracyHistory)
+    axs[1].plot(n, validAccuracyHistory)
+    axs[1].plot(n, testAccuracyHistory)
+    axs[1].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
+    axs[1].set_xlabel('iterations')
+    axs[1].set_ylabel('accuracy')
+
+    #1750
+    trainLossHistory, validLossHistory, testLossHistory, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "CE", batch_size=1750)
+
+    fig, axs = plt.subplots(1, 2, figsize=(8,4), dpi = 80, constrained_layout=True)
+
+    fig.suptitle("CE Batchsize Investigation (alpha = 0.001, lambda = 0, batch_size = 1750)")
+    axs[0].set_title("loss history")
+    axs[0].plot(n, trainLossHistory)
+    axs[0].plot(n, validLossHistory)
+    axs[0].plot(n, testLossHistory)
+    axs[0].legend(['train loss', 'valid loss', 'test loss'])
+    axs[0].set_xlabel('iterations')
+    axs[0].set_ylabel('loss')
+  
+    axs[1].set_title("accuracy history")
+    axs[1].plot(n, trainAccuracyHistory)
+    axs[1].plot(n, validAccuracyHistory)
+    axs[1].plot(n, testAccuracyHistory)
+    axs[1].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
+    axs[1].set_xlabel('iterations')
+    axs[1].set_ylabel('accuracy')
+
+    plt.show()
+
+    #3.4
+    fig, axs = plt.subplots(2, 3, figsize=(10,6), dpi = 100, constrained_layout=True)
+    fig.suptitle("CE Hyperparameter Investigation")
+    _, _, _, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "CE", beta1=0.95)
+    axs[0, 0].set_title("beta1 = 0.95")
+    axs[0, 0].plot(n, trainAccuracyHistory)
+    axs[0, 0].plot(n, validAccuracyHistory)
+    axs[0, 0].plot(n, testAccuracyHistory)
+    axs[0, 0].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
+    axs[0, 0].set_xlabel('iterations')
+    axs[0, 0].set_ylabel('accuracy')
+    print("beta1=0.95")
+    print("train accuracy =", trainAccuracyHistory[-1])
+    print("valid accuracy =", validAccuracyHistory[-1])
+    print("test accuracy =", testAccuracyHistory[-1])
+
+    _, _, _, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "CE", beta1=0.99)
+    axs[1, 0].set_title("beta1 = 0.99")
+    axs[1, 0].plot(n, trainAccuracyHistory)
+    axs[1, 0].plot(n, validAccuracyHistory)
+    axs[1, 0].plot(n, testAccuracyHistory)
+    axs[1, 0].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
+    axs[1, 0].set_xlabel('iterations')
+    axs[1, 0].set_ylabel('accuracy')
+    print('beta1=0.99')
+    print("train accuracy =", trainAccuracyHistory[-1])
+    print("valid accuracy =", validAccuracyHistory[-1])
+    print("test accuracy =", testAccuracyHistory[-1])
+    
+    _, _, _, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "CE", beta2=0.99)
+    axs[0, 1].set_title("beta2 = 0.99")
+    axs[0, 1].plot(n, trainAccuracyHistory)
+    axs[0, 1].plot(n, validAccuracyHistory)
+    axs[0, 1].plot(n, testAccuracyHistory)
+    axs[0, 1].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
+    axs[0, 1].set_xlabel('iterations')
+    axs[0, 1].set_ylabel('accuracy')
+    print('beta2=0.99')
+    print("train accuracy =", trainAccuracyHistory[-1])
+    print("valid accuracy =", validAccuracyHistory[-1])
+    print("test accuracy =", testAccuracyHistory[-1])
+
+    _, _, _, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "CE", beta2=0.9999)
+    axs[1, 1].set_title("beta2 = 0.9999")
+    axs[1, 1].plot(n, trainAccuracyHistory)
+    axs[1, 1].plot(n, validAccuracyHistory)
+    axs[1, 1].plot(n, testAccuracyHistory)
+    axs[1, 1].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
+    axs[1, 1].set_xlabel('iterations')
+    axs[1, 1].set_ylabel('accuracy')
+    print('beta2=0.9999')
+    print("train accuracy =", trainAccuracyHistory[-1])
+    print("valid accuracy =", validAccuracyHistory[-1])
+    print("test accuracy =", testAccuracyHistory[-1])
+
+    _, _, _, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "CE", epsilon=1e-9)
+    axs[0, 2].set_title("epsilon = 1e-9")
+    axs[0, 2].plot(n, trainAccuracyHistory)
+    axs[0, 2].plot(n, validAccuracyHistory)
+    axs[0, 2].plot(n, testAccuracyHistory)
+    axs[0, 2].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
+    axs[0, 2].set_xlabel('iterations')
+    axs[0, 2].set_ylabel('accuracy')
+    print('epsilon=1e-9')
+    print("train accuracy =", trainAccuracyHistory[-1])
+    print("valid accuracy =", validAccuracyHistory[-1])
+    print("test accuracy =", testAccuracyHistory[-1])
+
+    _, _, _, trainAccuracyHistory, validAccuracyHistory, testAccuracyHistory = SGD(loss_type = "CE", epsilon=1e-4)
+    axs[1, 2].set_title("epsilon = 1e-4")
+    axs[1, 2].plot(n, trainAccuracyHistory)
+    axs[1, 2].plot(n, validAccuracyHistory)
+    axs[1, 2].plot(n, testAccuracyHistory)
+    axs[1, 2].legend(['train accuracy', 'valid accuracy', 'test accuracy'])
+    axs[1, 2].set_xlabel('iterations')
+    axs[1, 2].set_ylabel('accuracy')
     print('epsilon=1e-4')
     print("train accuracy =", trainAccuracyHistory[-1])
     print("valid accuracy =", validAccuracyHistory[-1])
     print("test accuracy =", testAccuracyHistory[-1])
+
 
     plt.show()
 
